@@ -1,0 +1,8 @@
+{
+  "name": "Stagnum Dashboard",
+  "description": "A professional operations and project management dashboard for the construction industry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
