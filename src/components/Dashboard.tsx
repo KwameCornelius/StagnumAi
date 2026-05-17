@@ -2,14 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useSidebar } from '../contexts/SidebarContext';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 import { StatsCard } from './StatsCard';
 import {
   Briefcase, DollarSign, ExternalLink, ChevronRight,
   TrendingUp, GitMerge as Pipeline, Layers, Wallet,
+  Menu, AlertTriangle, Building2, RefreshCw,
 } from 'lucide-react';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -90,57 +93,98 @@ interface ForecastRow {
   forecasted_value: number | null;
 }
 
+type FetchStatus =
+  | { kind: 'loading' }
+  | { kind: 'no-org' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ok' };
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function Dashboard() {
   const { user } = useAuth();
-  const [orgId, setOrgId] = useState<string | null>(null);
+  const { toggle } = useSidebar();
   const [kpis, setKpis] = useState<KpiRow | null>(null);
   const [assets, setAssets] = useState<AssetRow[]>([]);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [forecast, setForecast] = useState<{ name: string; value: number }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<FetchStatus>({ kind: 'loading' });
+  // Bumping this triggers a re-fetch (used by the retry button on the error screen).
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
 
     async function fetchData() {
-      // 1. Get the user's org
-      const { data: membership } = await supabase
+      setStatus({ kind: 'loading' });
+
+      // 1. Look up the user's org. maybeSingle() returns null (no error) when
+      // the user hasn't joined any org yet — that's an empty state, not a bug.
+      const { data: membership, error: membershipError } = await supabase
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', user!.id)
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (!membership) { setLoading(false); return; }
+      if (cancelled) return;
+
+      if (membershipError) {
+        const message = `Couldn't load your organization: ${membershipError.message}`;
+        toast.error(message);
+        setStatus({ kind: 'error', message });
+        return;
+      }
+
+      if (!membership) {
+        setStatus({ kind: 'no-org' });
+        return;
+      }
+
       const oid = membership.organization_id;
-      setOrgId(oid);
 
-      // 2. Parallel fetch all dashboard data
-      const [
-        { data: kpiData },
-        { data: assetData },
-        { data: activityData },
-        { data: forecastData },
-      ] = await Promise.all([
-        supabase.from('v_org_kpis').select('*').eq('organization_id', oid).single(),
-        supabase.from('v_asset_distribution').select('id, name, status, current_value, allocation_pct')
-          .eq('organization_id', oid).limit(6),
-        supabase.from('activity_events').select('id, summary, verb, created_at')
-          .eq('organization_id', oid).order('created_at', { ascending: false }).limit(8),
-        supabase.from('v_performance_forecast_monthly').select('month, stage, forecasted_value')
+      // 2. Parallel fetch all dashboard data. We collect errors per-query so a
+      // single failed query still lets the rest of the dashboard render.
+      const [kpiRes, assetRes, activityRes, forecastRes] = await Promise.all([
+        supabase.from('v_org_kpis').select('*').eq('organization_id', oid).maybeSingle(),
+        supabase
+          .from('v_asset_distribution')
+          .select('id, name, status, current_value, allocation_pct')
+          .eq('organization_id', oid)
+          .limit(6),
+        supabase
+          .from('activity_events')
+          .select('id, summary, verb, created_at')
+          .eq('organization_id', oid)
+          .order('created_at', { ascending: false })
+          .limit(8),
+        supabase
+          .from('v_performance_forecast_monthly')
+          .select('month, stage, forecasted_value')
           .eq('organization_id', oid),
       ]);
 
-      if (kpiData) setKpis(kpiData as unknown as KpiRow);
-      if (assetData) setAssets(assetData as unknown as AssetRow[]);
-      if (activityData) setActivities(activityData as unknown as ActivityRow[]);
+      if (cancelled) return;
 
-      if (forecastData) {
+      const sectionErrors: Array<{ section: string; message: string }> = [];
+      const note = (section: string, error: { message: string } | null) => {
+        if (error) sectionErrors.push({ section, message: error.message });
+      };
+
+      note('KPIs', kpiRes.error);
+      note('Assets', assetRes.error);
+      note('Activity', activityRes.error);
+      note('Forecast', forecastRes.error);
+
+      if (kpiRes.data) setKpis(kpiRes.data as unknown as KpiRow);
+      if (assetRes.data) setAssets(assetRes.data as unknown as AssetRow[]);
+      if (activityRes.data) setActivities(activityRes.data as unknown as ActivityRow[]);
+
+      if (forecastRes.data) {
         // Aggregate by month (multiple rows per month, one per stage)
         const byMonth = new Map<string, { label: string; value: number }>();
-        (forecastData as unknown as ForecastRow[]).forEach(row => {
+        (forecastRes.data as unknown as ForecastRow[]).forEach(row => {
           const d = new Date(row.month);
           const key = row.month;
           const label = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
@@ -154,13 +198,32 @@ export function Dashboard() {
         );
       }
 
-      setLoading(false);
+      if (sectionErrors.length === 4) {
+        // Every query failed — almost certainly an auth/network/RLS issue.
+        // Show the inline error screen instead of an empty dashboard.
+        const message = sectionErrors.map(e => `${e.section}: ${e.message}`).join(' • ');
+        toast.error('Failed to load dashboard');
+        setStatus({ kind: 'error', message });
+        return;
+      }
+
+      if (sectionErrors.length > 0) {
+        // Partial failure — render what we have, toast the rest.
+        sectionErrors.forEach(e =>
+          toast.error(`${e.section} failed to load`, { description: e.message })
+        );
+      }
+
+      setStatus({ kind: 'ok' });
     }
 
     fetchData();
-  }, [user]);
+    return () => { cancelled = true; };
+  }, [user, refreshKey]);
 
-  if (loading) {
+  // ── Render states ──────────────────────────────────────────────────────────
+
+  if (status.kind === 'loading') {
     return (
       <div className="flex-1 flex items-center justify-center bg-brand-bg">
         <div className="animate-pulse flex flex-col items-center">
@@ -170,6 +233,51 @@ export function Dashboard() {
       </div>
     );
   }
+
+  if (status.kind === 'no-org') {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-brand-bg p-6">
+        <div className="w-full max-w-md text-center bg-brand-card border border-brand-border rounded-2xl p-8 shadow-xl">
+          <div className="mx-auto w-12 h-12 rounded-full bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-5">
+            <Building2 className="w-6 h-6 text-brand-accent" />
+          </div>
+          <h2 className="text-lg font-bold text-brand-text-main mb-2">No organization yet</h2>
+          <p className="text-sm text-brand-text-dim">
+            Your account isn't a member of any organization, so there's nothing to show here yet.
+            Create one or ask an admin to invite you, then come back.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status.kind === 'error') {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-brand-bg p-6">
+        <div className="w-full max-w-md text-center bg-brand-card border border-brand-border rounded-2xl p-8 shadow-xl">
+          <div className="mx-auto w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-5">
+            <AlertTriangle className="w-6 h-6 text-red-400" />
+          </div>
+          <h2 className="text-lg font-bold text-brand-text-main mb-2">Couldn't load the dashboard</h2>
+          <p className="text-sm text-brand-text-dim mb-4">
+            Something went wrong fetching your data. This is usually a temporary network issue — try again in a moment.
+          </p>
+          <pre className="text-[11px] text-left text-brand-text-dim bg-brand-bg border border-brand-border rounded-lg p-3 mb-6 overflow-auto max-h-32 font-mono">
+            {status.message}
+          </pre>
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-accent text-brand-bg rounded-lg text-sm font-bold shadow-[0_0_15px_rgba(45,212,191,0.3)] hover:shadow-[0_0_20px_rgba(45,212,191,0.5)] transition-all"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // status.kind === 'ok' — render the dashboard
 
   const statsCards = [
     {
@@ -203,26 +311,36 @@ export function Dashboard() {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto bg-brand-bg p-8 space-y-8">
-      <header className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold text-brand-text-main tracking-tight">Overview</h1>
-          <p className="text-sm text-brand-text-dim font-medium">
-            {kpis?.org_name ?? 'Your organization'} — portfolio at a glance.
-          </p>
+    <div className="flex-1 overflow-y-auto bg-brand-bg p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
+        <div className="flex items-start gap-3 sm:items-end">
+          {/* Mobile-only hamburger to open the sidebar drawer. */}
+          <button
+            onClick={toggle}
+            aria-label="Open navigation"
+            className="lg:hidden -ml-1 mt-1 p-2 text-brand-text-dim hover:text-brand-text-main transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-text-main tracking-tight">Overview</h1>
+            <p className="text-sm text-brand-text-dim font-medium">
+              {kpis?.org_name ?? 'Your organization'} — portfolio at a glance.
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
-          <button className="px-5 py-2.5 bg-brand-border text-brand-text-main border border-brand-border rounded-lg text-sm font-semibold shadow-sm hover:bg-brand-border/80 transition-all flex items-center gap-2">
+          <button className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 bg-brand-border text-brand-text-main border border-brand-border rounded-lg text-sm font-semibold shadow-sm hover:bg-brand-border/80 transition-all flex items-center justify-center gap-2">
             Reports <ExternalLink className="w-4 h-4 opacity-50" />
           </button>
-          <button className="px-5 py-2.5 bg-brand-accent text-brand-bg rounded-lg text-sm font-bold shadow-[0_0_15px_rgba(45,212,191,0.3)] hover:shadow-[0_0_20px_rgba(45,212,191,0.5)] transition-all">
+          <button className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 bg-brand-accent text-brand-bg rounded-lg text-sm font-bold shadow-[0_0_15px_rgba(45,212,191,0.3)] hover:shadow-[0_0_20px_rgba(45,212,191,0.5)] transition-all whitespace-nowrap">
             New Project
           </button>
         </div>
       </header>
 
       {/* KPI Stats */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {statsCards.map((card, i) => (
           <StatsCard
             key={card.title}
@@ -236,11 +354,11 @@ export function Dashboard() {
         ))}
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         <div className="lg:col-span-2 space-y-6">
 
           {/* Performance Forecast Chart */}
-          <div className="bg-brand-card p-6 rounded-xl border border-brand-border shadow-sm h-[400px] flex flex-col">
+          <div className="bg-brand-card p-4 sm:p-6 rounded-xl border border-brand-border shadow-sm h-[320px] sm:h-[400px] flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h2 className="text-sm font-bold text-brand-text-dim uppercase tracking-wider">Performance Forecast</h2>
@@ -282,7 +400,7 @@ export function Dashboard() {
           </div>
 
           {/* Asset Distribution */}
-          <div className="bg-brand-card p-6 rounded-xl border border-brand-border shadow-sm">
+          <div className="bg-brand-card p-4 sm:p-6 rounded-xl border border-brand-border shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-sm font-bold text-brand-text-dim uppercase tracking-wider">Asset Distribution</h2>
               <button className="text-[10px] font-bold text-brand-text-dim flex items-center gap-1 hover:text-brand-text-main transition-colors uppercase tracking-widest">
@@ -292,8 +410,8 @@ export function Dashboard() {
             {assets.length === 0 ? (
               <p className="text-sm text-brand-text-dim text-center py-8">No assets found</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+                <table className="w-full text-left min-w-[480px]">
                   <thead>
                     <tr className="border-b border-brand-border text-[10px] uppercase tracking-[0.2em] text-brand-text-dim font-black">
                       <th className="pb-4 px-4 font-black">Asset Name</th>
@@ -344,7 +462,7 @@ export function Dashboard() {
         <div className="space-y-6">
 
           {/* Real-Time Feed */}
-          <div className="bg-brand-card p-6 rounded-xl border border-brand-border shadow-sm">
+          <div className="bg-brand-card p-4 sm:p-6 rounded-xl border border-brand-border shadow-sm">
             <h2 className="text-sm font-bold text-brand-text-dim uppercase tracking-wider mb-6">Real-time Feed</h2>
             {activities.length === 0 ? (
               <p className="text-sm text-brand-text-dim text-center py-8">No recent activity</p>
