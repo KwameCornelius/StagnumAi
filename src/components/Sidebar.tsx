@@ -1,40 +1,9 @@
-import React from 'react';
-import {
-  LayoutDashboard,
-  FolderKanban,
-  Library,
-  FileText,
-  ShoppingCart,
-  Users,
-  ClipboardCheck,
-  Wallet,
-  Layers,
-  HardHat,
-  Leaf,
-  CheckSquare,
-  Settings,
-  LogOut,
-  X,
-} from 'lucide-react';
+import { LogOut, X } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useSidebar } from '../contexts/SidebarContext';
-
-const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', active: true },
-  { icon: FolderKanban, label: 'Projects' },
-  { icon: Library, label: 'Rates Library' },
-  { icon: FileText, label: 'Quotations' },
-  { icon: ShoppingCart, label: 'Procurement' },
-  { icon: Users, label: 'Labour' },
-  { icon: ClipboardCheck, label: 'QA / QC' },
-  { icon: Wallet, label: 'Finance' },
-  { icon: Layers, label: 'Tender Pipeline' },
-  { icon: HardHat, label: 'Assets' },
-  { icon: Leaf, label: 'Sustainable' },
-  { icon: CheckSquare, label: 'Approvals' },
-  { icon: Settings, label: 'Settings' },
-];
+import { NAV_ITEMS } from '../lib/navigation';
 
 export function Sidebar() {
   const { user, signOut } = useAuth();
@@ -86,23 +55,41 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          {menuItems.map((item) => (
-            <button
-              key={item.label}
-              onClick={close /* tapping a link should also dismiss the drawer on mobile */}
-              className={cn(
-                'w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-all group/item',
-                item.active
-                  ? 'bg-brand-border text-brand-text-main shadow-sm'
-                  : 'text-brand-text-dim hover:bg-brand-border/50 hover:text-brand-text-main',
-              )}
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              // `end` on the dashboard route ensures it's only marked
+              // active for an exact match, not as a prefix of every path.
+              end={item.path === '/'}
+              // Tapping a link should also dismiss the mobile drawer.
+              onClick={close}
+              className={({ isActive }) =>
+                cn(
+                  'w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-all group/item',
+                  isActive
+                    ? 'bg-brand-border text-brand-text-main shadow-sm'
+                    : 'text-brand-text-dim hover:bg-brand-border/50 hover:text-brand-text-main',
+                )
+              }
             >
-              <div className="flex items-center gap-3">
-                <item.icon className={cn('w-4 h-4', item.active ? 'text-brand-accent' : 'group-hover/item:text-brand-accent transition-colors')} />
-                <span>{item.label}</span>
-              </div>
-              {item.active && <div className="w-1.5 h-1.5 rounded-full bg-brand-accent shadow-[0_0_8px_rgba(45,212,191,0.5)]" />}
-            </button>
+              {({ isActive }) => (
+                <>
+                  <div className="flex items-center gap-3">
+                    <item.icon
+                      className={cn(
+                        'w-4 h-4',
+                        isActive ? 'text-brand-accent' : 'group-hover/item:text-brand-accent transition-colors',
+                      )}
+                    />
+                    <span>{item.label}</span>
+                  </div>
+                  {isActive && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-brand-accent shadow-[0_0_8px_rgba(45,212,191,0.5)]" />
+                  )}
+                </>
+              )}
+            </NavLink>
           ))}
         </nav>
 
