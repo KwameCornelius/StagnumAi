@@ -32,7 +32,6 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Surface to the console so the developer sees it during local dev.
     // In production this is where we'd hand off to Sentry / similar.
-    // eslint-disable-next-line no-console
     console.error('[ErrorBoundary] caught render error:', error, info);
   }
 
