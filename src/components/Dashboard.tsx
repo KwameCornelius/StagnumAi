@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -330,12 +331,22 @@ export function Dashboard() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 bg-brand-border text-brand-text-main border border-brand-border rounded-lg text-sm font-semibold shadow-sm hover:bg-brand-border/80 transition-all flex items-center justify-center gap-2">
+          {/* Reports navigates to /finance because that's where invoices,
+              payments, cash-flow — the canonical "reports" — will live. */}
+          <Link
+            to="/finance"
+            className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 bg-brand-border text-brand-text-main border border-brand-border rounded-lg text-sm font-semibold shadow-sm hover:bg-brand-border/80 transition-all flex items-center justify-center gap-2"
+          >
             Reports <ExternalLink className="w-4 h-4 opacity-50" />
-          </button>
-          <button className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 bg-brand-accent text-brand-bg rounded-lg text-sm font-bold shadow-[0_0_15px_rgba(45,212,191,0.3)] hover:shadow-[0_0_20px_rgba(45,212,191,0.5)] transition-all whitespace-nowrap">
+          </Link>
+          {/* "New Project" lands on /projects until a dedicated
+              /projects/new route exists. */}
+          <Link
+            to="/projects"
+            className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 bg-brand-accent text-brand-bg rounded-lg text-sm font-bold shadow-[0_0_15px_rgba(45,212,191,0.3)] hover:shadow-[0_0_20px_rgba(45,212,191,0.5)] transition-all whitespace-nowrap flex items-center justify-center"
+          >
             New Project
-          </button>
+          </Link>
         </div>
       </header>
 
