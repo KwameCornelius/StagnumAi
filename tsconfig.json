@@ -1,8 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
+    "useDefineForClassFields": true,
     "module": "ESNext",
     "lib": [
       "ES2022",
@@ -13,7 +12,6 @@
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
-    "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
       "@/*": [
@@ -21,6 +19,15 @@
       ]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+    "noEmit": true,
+    "resolveJsonModule": true,
+
+    // Strictness — turn the screws.
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true
+  },
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "eslint.config.js"]
 }
