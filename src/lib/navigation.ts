@@ -54,7 +54,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Projects',
     icon: FolderKanban,
     blurb: 'Active and closed construction projects, milestones, and team members.',
-    comingSoon: true,
+    comingSoon: false,
   },
   {
     path: '/rates',
