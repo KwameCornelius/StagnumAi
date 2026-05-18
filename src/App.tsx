@@ -17,6 +17,12 @@ const Dashboard = lazy(() =>
   import('./components/Dashboard').then((m) => ({ default: m.Dashboard })),
 );
 
+// Same lazy-load treatment for ProjectsPage — keeps it out of the login
+// screen's bundle, and out of every other page's bundle until visited.
+const ProjectsPage = lazy(() =>
+  import('./pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })),
+);
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -73,12 +79,15 @@ function AppRoutes() {
           }
         >
           {NAV_ITEMS.map((item) => {
-            // Dashboard is the only NAV_ITEM with a real implementation
-            // right now; everything else gets a StubPage. As real pages
-            // land they replace these entries — the NAV_ITEMS config
-            // already tracks each via `comingSoon`.
+            // Real pages get their own component; everything still flagged
+            // `comingSoon` in NAV_ITEMS falls through to StubPage. Adding a
+            // new real page is two lines: a case in this switch and flipping
+            // comingSoon in src/lib/navigation.ts.
             if (item.path === '/') {
               return <Route key={item.path} index element={<Dashboard />} />;
+            }
+            if (item.path === '/projects') {
+              return <Route key={item.path} path="projects" element={<ProjectsPage />} />;
             }
             return (
               <Route
