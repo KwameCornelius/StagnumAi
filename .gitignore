@@ -6,3 +6,13 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Editor / IDE local state
+.vscode/
+.idea/
+
+# Claude Code local worktree + agent state
+.claude/
+
+# PR helper scratch files
+.pr-body.md

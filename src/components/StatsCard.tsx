@@ -10,6 +10,7 @@ interface StatsCardProps {
   icon?: LucideIcon;
   variant?: 'default' | 'alert' | 'success';
   delay?: number;
+  key?: React.Key;
 }
 
 export function StatsCard({ title, value, subtitle, icon: Icon, variant = 'default', delay = 0 }: StatsCardProps) {

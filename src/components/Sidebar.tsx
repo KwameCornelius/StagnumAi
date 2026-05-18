@@ -1,21 +1,23 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  FolderKanban, 
-  Library, 
-  FileText, 
-  ShoppingCart, 
-  Users, 
-  ClipboardCheck, 
-  Wallet, 
-  Layers, 
-  HardHat, 
-  Leaf, 
-  CheckSquare, 
+import {
+  LayoutDashboard,
+  FolderKanban,
+  Library,
+  FileText,
+  ShoppingCart,
+  Users,
+  ClipboardCheck,
+  Wallet,
+  Layers,
+  HardHat,
+  Leaf,
+  CheckSquare,
   Settings,
-  ChevronRight
+  ChevronRight,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', active: true },
@@ -34,6 +36,12 @@ const menuItems = [
 ];
 
 export function Sidebar() {
+  const { user, signOut } = useAuth();
+  const displayName = (user?.user_metadata?.full_name as string | undefined)
+    ?? user?.email?.split('@')[0]
+    ?? 'User';
+  const initials = displayName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+
   return (
     <aside className="w-64 border-r border-brand-border bg-brand-sidebar flex flex-col h-screen overflow-hidden group">
       <div className="p-6 border-b border-brand-border">
@@ -65,16 +73,23 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-brand-border">
+      <div className="p-4 border-t border-brand-border space-y-1">
         <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-brand-border transition-colors cursor-pointer">
-          <div className="w-8 h-8 rounded-full bg-brand-accent/20 flex items-center justify-center text-xs font-semibold text-brand-accent border border-brand-accent/30">
-            FC
+          <div className="w-8 h-8 rounded-full bg-brand-accent/20 flex items-center justify-center text-xs font-semibold text-brand-accent border border-brand-accent/30 flex-shrink-0">
+            {initials}
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-brand-text-main">Alex Rivers</span>
-            <span className="text-[10px] text-brand-text-dim">Founder / Principal</span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-semibold text-brand-text-main truncate">{displayName}</span>
+            <span className="text-[10px] text-brand-text-dim">{user?.email}</span>
           </div>
         </div>
+        <button
+          onClick={signOut}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-brand-text-dim hover:bg-brand-border/50 hover:text-red-400 transition-all"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Sign Out</span>
+        </button>
       </div>
     </aside>
   );
