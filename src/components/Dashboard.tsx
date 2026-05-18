@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -391,7 +391,7 @@ export function Dashboard() {
                     contentStyle={{ backgroundColor: '#09090b', borderRadius: '12px', border: '1px solid #27272a', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
                     itemStyle={{ color: '#f4f4f5', fontSize: '12px' }}
                     labelStyle={{ color: '#a1a1aa', fontSize: '10px', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 'bold' }}
-                    formatter={(v: number) => [fmtCurrency(v), 'Forecast']}
+                    formatter={(v) => [fmtCurrency(typeof v === 'number' ? v : Number(v)), 'Forecast']}
                   />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40} fill="url(#barGradient)" />
                 </BarChart>
