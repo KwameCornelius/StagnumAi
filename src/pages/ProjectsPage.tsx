@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Menu, AlertTriangle, FolderKanban, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
@@ -86,6 +87,7 @@ function fmtDate(iso: string | null): string {
 export function ProjectsPage() {
   const { user } = useAuth();
   const { toggle } = useSidebar();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [status, setStatus] = useState<FetchStatus>({ kind: 'loading' });
   const [filter, setFilter] = useState<ProjectStage | 'all'>('all');
@@ -276,34 +278,36 @@ export function ProjectsPage() {
           {/* Mobile: cards */}
           <ul className="space-y-3 lg:hidden">
             {filtered.map((p) => (
-              <li
-                key={p.id}
-                className="bg-brand-card border border-brand-border rounded-xl p-4 shadow-sm hover:border-brand-accent/50 transition-colors"
-              >
-                <div className="flex justify-between items-start gap-3 mb-2">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-mono text-brand-text-dim uppercase tracking-widest">{p.code}</p>
-                    <h3 className="text-sm font-bold text-brand-text-main truncate">{p.name}</h3>
-                    {p.clients?.name && (
-                      <p className="text-xs text-brand-text-dim mt-0.5">{p.clients.name}</p>
-                    )}
+              <li key={p.id}>
+                <Link
+                  to={`/projects/${p.id}`}
+                  className="block bg-brand-card border border-brand-border rounded-xl p-4 shadow-sm hover:border-brand-accent/50 transition-colors"
+                >
+                  <div className="flex justify-between items-start gap-3 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-mono text-brand-text-dim uppercase tracking-widest">{p.code}</p>
+                      <h3 className="text-sm font-bold text-brand-text-main truncate">{p.name}</h3>
+                      {p.clients?.name && (
+                        <p className="text-xs text-brand-text-dim mt-0.5">{p.clients.name}</p>
+                      )}
+                    </div>
+                    <div
+                      className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5', HEALTH_DOT[p.health])}
+                      title={HEALTH_LABEL[p.health]}
+                    />
                   </div>
-                  <div
-                    className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5', HEALTH_DOT[p.health])}
-                    title={HEALTH_LABEL[p.health]}
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
-                  <span className={cn('px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider', STAGE_PILL[p.status])}>
-                    {STAGE_LABEL[p.status]}
-                  </span>
-                  <span className="text-brand-text-main font-mono font-bold">
-                    {fmtMoney(p.contract_value, p.currency_code)}
-                  </span>
-                  <span className="text-brand-text-dim">
-                    {fmtDate(p.start_date)} → {fmtDate(p.target_end_date)}
-                  </span>
-                </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                    <span className={cn('px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider', STAGE_PILL[p.status])}>
+                      {STAGE_LABEL[p.status]}
+                    </span>
+                    <span className="text-brand-text-main font-mono font-bold">
+                      {fmtMoney(p.contract_value, p.currency_code)}
+                    </span>
+                    <span className="text-brand-text-dim">
+                      {fmtDate(p.start_date)} → {fmtDate(p.target_end_date)}
+                    </span>
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>
@@ -325,7 +329,12 @@ export function ProjectsPage() {
                 {filtered.map((p) => (
                   <tr
                     key={p.id}
-                    className="hover:bg-brand-border/30 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/projects/${p.id}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/projects/${p.id}`); }}
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`Open project ${p.code} — ${p.name}`}
+                    className="hover:bg-brand-border/30 transition-colors cursor-pointer focus:outline-none focus:bg-brand-border/30"
                   >
                     <td className="px-6 py-4 text-xs font-mono text-brand-text-dim uppercase tracking-widest">{p.code}</td>
                     <td className="px-6 py-4">

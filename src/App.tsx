@@ -22,6 +22,9 @@ const Dashboard = lazy(() =>
 const ProjectsPage = lazy(() =>
   import('./pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })),
 );
+const ProjectDetailPage = lazy(() =>
+  import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })),
+);
 
 export default function App() {
   return (
@@ -87,7 +90,15 @@ function AppRoutes() {
               return <Route key={item.path} index element={<Dashboard />} />;
             }
             if (item.path === '/projects') {
-              return <Route key={item.path} path="projects" element={<ProjectsPage />} />;
+              // The list route and its detail route share the /projects prefix
+              // and the same Layout — declared as a fragment so both live
+              // under the protected <Layout /> branch.
+              return (
+                <Route key={item.path} path="projects">
+                  <Route index element={<ProjectsPage />} />
+                  <Route path=":id" element={<ProjectDetailPage />} />
+                </Route>
+              );
             }
             return (
               <Route
